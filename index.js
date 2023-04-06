@@ -13,7 +13,7 @@ app.use(express.urlencoded({ extended: false }))
 
 // routes and controllers
 app.get('/', (req, res) => {
-    res.send('welcome to the auth api 🌊')
+    res.render("index.ejs")
 })
 
 app.use('/users', require('./controllers/users.js'))
