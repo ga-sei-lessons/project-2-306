@@ -1,6 +1,9 @@
 // required packages
 const express = require('express')
 const router = express.Router()
+const db = require('../models')
+const bcrypt = require('bcrypt')
+const crytpoJs = require('crypto-js')
 
 // GET /users/new -- show route for a form that creates a new user (sign up for the app)
 router.get('/new', (req, res) => {
@@ -8,29 +11,78 @@ router.get('/new', (req, res) => {
 })
 
 // POST /users -- CREATE a new user from the form @ GET /users/new
-router.post('/', (req, res) => {
-    console.log(req.body)
-    // do a find or create with the user's given email
-        // if the user's returns as found -- don't let them sign up
-        // instead redirect them to the loging page
-    // hash the users's password before we add it to the db
-    // save the user in the db
-    // encypt the logged in user's id
-    // set encrypted id as a cookie
-    // redirect user 
-
-
-    res.send('create a new user if they do not exist already in the db, log a user in')
+router.post('/', async (req, res) => {
+    try {
+        console.log(req.body)
+        // do a find or create with the user's given email
+        const [newUser, created] = await db.user.findOrCreate({
+            where: {
+                email: req.body.email
+            }
+        })
+        if (!created) {
+            // if the user's returns as found -- don't let them sign up
+            console.log('user account exists')
+            // instead redirect them to the log in page
+            res.redirect('/users/login?message=Please login to your account to continue 🙈')
+        } else {
+            // hash the users's password before we add it to the db
+            const hashedPassed = bcrypt.hashSync(req.body.password, 12)
+            // save the user in the db
+            newUser.password = hashedPassed
+            await newUser.save()
+            // encypt the logged in user's id
+            const encryptedPk = crytpoJs.AES.encrypt(newUser.id.toString(), process.env.ENC_KEY)
+            // set encrypted id as a cookie
+            res.cookie('userId', encryptedPk.toString())
+            // redirect user 
+            res.redirect('/users/profile')
+        }
+    } catch (error) {
+        console.log(error)
+        res.redirect('/')
+    }
 })
 
 // GET /users/login -- show route for a form that lets a user login
 router.get('/login', (req, res) => {
-    res.send('show a form that lets the user log in')
+    console.log(req.query)
+    res.render('users/login.ejs', {
+        message: req.query.message ? req.query.message : null
+    })
 })
 
 // POST /users/login -- authenticate a user's credentials
-router.post('/login', (req, res) => {
-    res.send('verify crendentials that are given by the user to log in')
+router.post('/login', async (req, res) => {
+    try {
+        console.log(req.body)
+        // search for the user's email in the db
+        const foundUser = await db.user.findOne({
+            where: {
+                email: req.body.email
+            }
+        })
+        const failedLoginMessage = 'Incorrect email or password 🙁'
+        if (!foundUser) {
+            // if the user's email is not found -- do not let them login
+            console.log('user not found')
+            res.redirect('/users/login?message=' + failedLoginMessage)
+        } else if (!bcrypt.compareSync(req.body.password, foundUser.password)) {
+            console.log('incorrect password')
+            // if the user exists but they have the wrong password -- do not let them login
+            res.redirect('/users/login?message=' + failedLoginMessage )
+        } else {
+            // if the user exists, they know the right password -- log them in
+            const encryptedPk = crytpoJs.AES.encrypt(foundUser.id.toString(), process.env.ENC_KEY)
+            // set encrypted id as a cookie
+            res.cookie('userId', encryptedPk.toString())
+            // redirect user 
+            res.redirect('/users/profile')
+        }
+    } catch (error) {
+        console.log(error)
+        res.redirect('/')
+    }
 })
 
 // GET /users/logout -- log out the current user
