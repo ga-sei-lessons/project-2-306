@@ -87,12 +87,21 @@ router.post('/login', async (req, res) => {
 
 // GET /users/logout -- log out the current user
 router.get('/logout', (req, res) => {
-    res.send('log a user out')
+    console.log('logging user out!')
+    res.clearCookie('userId')
+    res.redirect('/')
 })
 
 // GET /users/profile -- show authorized users their profile page
 router.get('/profile', (req, res) => {
-    res.send('show the currently logged in user their personal profile page')
+    // if the user comes and is not logged -- they lack authorization
+    if(!res.locals.user) {
+        // redirect them ot the login
+        res.redirect('/users/login?message=You are not authorized to view that page. Please authenticate to continue 😎')
+    } else {
+        // if they are allowed to be here, show them their profile
+        res.render('users/profile.ejs')
+    }
 })
 
 // export the router instance
